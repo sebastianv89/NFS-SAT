@@ -1,0 +1,11 @@
+*~
+*.swp
+*.dyn_hi
+*.dyn_o
+*.hi
+*.o
+__pycache__/
+measure.pickle
+gensat_smooth
+bench/*.dimacs
+bench/sol_*/
