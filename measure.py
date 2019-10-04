@@ -125,14 +125,16 @@ def visualize(data):
         for solution in data[n]['solutions'].values():
             yss.append(solution['time'])
         ys.append(y(n) * np.median(yss))
+    min_size = min(data[n]['size'] for n in data) - 1
+    max_size = max(data[n]['size'] for n in data) + 1
     plt.xscale('log')
     plt.yscale('log')
     plt.scatter(xs, ys, label='y(N) * time to solve one instance')
     l3 = plt.plot(x_line, y_line3, label='$2^{y}$')
     l1 = plt.plot(x_line, y_line1, label='$L^{1.387}$')
     l2 = plt.plot(x_line, y_line2, label='$L^{1.923}$')
-    plt.xticks([2**i for i in range(7, 20)],
-            ['$2^{{{}}}$'.format(i) for i in range(7, 20)])
+    plt.xticks([2**i for i in range(min_size, max_size)],
+            ['$2^{{{}}}$'.format(i) for i in range(min_size, max_size)])
     plt.xlabel('N')
     plt.ylabel('median solver runtime (s)')
     plt.legend()
@@ -155,19 +157,28 @@ def visualize_more(data):
     plt.scatter(xs, ys)
 
     # plot sizeof(N) against runtime
-    xs = list(data.keys())
-    ys, yss = [], []
+    xs_small, xs_large = [], []
+    ys_small, ys_large = [], []
     for n in data:
-        yss.append([])
-        for solution in data[n]['solutions'].values():
-            yss[-1].append(solution['time'])
-        ys.append(np.median(yss[-1]))
+        if data[n]['size'] < 18:
+            xs_small.append(n)
+            ys_small.append([])
+            for solution in data[n]['solutions'].values():
+                ys_small[-1].append(solution['time'])
+        else:
+            # we did only a few measurements for >=18-bit numbers, so just show them all
+            for solution in data[n]['solutions'].values():
+                xs_large.append(n)
+                ys_large.append(solution['time'])
+    min_size = min(data[n]['size'] for n in data) - 1
+    max_size = max(data[n]['size'] for n in data) + 1
     plt.subplot(2, 2, 2)
     plt.xscale('log')
     plt.yscale('log')
-    plt.boxplot(yss, positions=xs)
-    plt.xticks([2**i for i in range(7, 20)],
-            ['$2^{{{}}}$'.format(i) for i in range(7, 20)])
+    plt.boxplot(ys_small, positions=xs_small)
+    plt.scatter(xs_large, ys_large)
+    plt.xticks([2**i for i in range(min_size, max_size)],
+            ['$2^{{{}}}$'.format(i) for i in range(min_size, max_size)])
     plt.xlabel('N')
     plt.ylabel('solver runtime (s)')
 
@@ -179,9 +190,13 @@ def visualize_more(data):
         for solution in data[n]['solutions'].values():
             xs.append(abs(solution['Fab']))
             ys.append(solution['time'])
+    min_size = min(xs).bit_length() - 1
+    max_size = max(xs).bit_length() + 1
     plt.subplot(2, 2, 3)
     plt.xscale('log')
     plt.yscale('log')
+    plt.xticks([2**i for i in range(min_size, max_size, 2)],
+            ['$2^{{{}}}$'.format(i) for i in range(min_size, max_size, 2)])
     plt.xlabel('|F(a,b)|')
     plt.ylabel('solver runtime (s)')
     plt.scatter(xs, ys)
