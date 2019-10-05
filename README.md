@@ -24,10 +24,10 @@ clauses. This requires your solver to have this capability. I used
 [MapleComSPS](https://sites.google.com/a/gsd.uwaterloo.ca/maplesat/),
 but I believe all SAT solvers based on [minisat](http://minisat.se/)
 have this capability. Accordingly you may have to change the command in
-the `simp.sh` script, then run:
+the `simp.py` script, then run:
 
 ```bash
-$ bash simp.sh
+$ python3 simp.py
 ```
 
 Now you should be able to reproduce our results:
