@@ -16,7 +16,7 @@ Extract the circuits SAT instances and their solutions (warning: lots
 of data):
 
 ```bash
-$ 7z -x bench.7z
+$ 7z x bench.7z
 ```
 
 Simplify the SAT instances, which can reduce many variables and
