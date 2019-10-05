@@ -798,17 +798,17 @@ rationalSide a b m = do
   return res
 
 -- g(a, b)
-algebraicSide :: SInt -> UInt -> [UInt] -> SymEval SInt
-algebraicSide a b cs = do
+algebraicSide :: SInt -> UInt -> [UInt] -> Int -> SymEval SInt
+algebraicSide a b cs lgBound = do
   debugComment $ "algebraicSide: " ++ show (a,b,cs)
   let d = length cs - 1
   aa <- absGate a
   debugComment $ "abs a: " ++ show aa
   pas <- powers aa d
   pbs <- powers b d 
-  pabs <- zipWithM longMult pas (reverse pbs)
+  pabs <- zipWithM truncMult pas (reverse pbs)
   debugComment $ "pabs: " ++ show pabs
-  terms <- zipWithM longMult cs pabs
+  terms <- zipWithM truncMult cs pabs
   debugComment $ "terms: " ++ show terms
   let (evens, odds) = evenOdd terms
   -- sum the terms, postponing negation
@@ -823,21 +823,23 @@ algebraicSide a b cs = do
                            rippleSubSInts so (uint2SInt sEvens)
   debugComment $ "algebraicSide: " ++ show (a,b,cs) ++ " -> " ++ show res
   return res
+  where truncMult x y = longMult x y >>= truncateUInt lgBound
 
-nfsSide :: SInt -> UInt -> UInt -> [UInt] -> SymEval SInt
-nfsSide a b m cs = do
+-- F(a,b)
+nfsSide :: SInt -> UInt -> UInt -> [UInt] -> Int -> SymEval SInt
+nfsSide a b m cs lgBound = do
   debugComment $ "nfsSide: " ++ show (a,b,m,cs)
   rat <- rationalSide a b m
-  alg <- algebraicSide a b cs
-  res <- signedMult rat alg
+  alg <- algebraicSide a b cs lgBound
+  res <- signedMult rat alg >>= truncateSInt lgBound
   debugComment $ "nfsSide result: " ++ show (a,b,m,cs) ++ " -> " ++ show res
   return res
 
-smoothCircuit :: (Integral n, Show n) => SInt -> UInt -> UInt -> [UInt] -> [(n, UInt)] -> SymEval ()
-smoothCircuit a b m cs pes = do
+smoothCircuit :: (Integral n, Show n) => SInt -> UInt -> UInt -> [UInt] -> [(n, UInt)] -> Int -> SymEval ()
+smoothCircuit a b m cs pes lgBound = do
   debugComment $ "smoothCircuit: " ++ show (a, b, m, cs, pes)
-  lhs <- nfsSide a b m cs
-  rhs <- primeProduct (Just . (\x -> x-1) . length . getSInt $ lhs) pes
+  lhs <- nfsSide a b m cs lgBound
+  rhs <- primeProduct (Just lgBound) pes
   debugComment $ "smoothCircuit result: " ++ show lhs ++ " == " ++ show rhs
   assertEqSInt lhs rhs
 
@@ -849,25 +851,24 @@ bigl c n = exp (c * (ln ** (1/3)) * (lln ** (2/3)))
   where lln = log ln
         ln = log n
 
-primeList :: (Integral n, Show n, Floating f, RealFrac f) => n -> f -> f -> f -> Maybe Int -> SymEval [(n, UInt)]
-primeList m d y u eMax = do
+primeList :: (Integral n, Show n, Floating f, RealFrac f, Show f) => n -> f -> f -> f -> [n] -> f -> Maybe Int -> SymEval [(n, UInt)]
+primeList m d y u cs bound eMax = do
   sign <- nextVar
+  let y' = floor y
+      ps = takeWhile (<= y') primes
+      m' = fromIntegral m
+      getExp p = do
+        let p' = fromIntegral p
+            e_bound = logBase p' bound
+            lge_bound = floor . logBase 2 $ e_bound
+            e_size = maybe lge_bound (min lge_bound) eMax
+        e <- replicateM e_size nextVar
+        return (p, UInt e)
   rest <- mapM getExp ps
   return $ (-1, UInt [sign]) : rest
-  where ps = takeWhile (<= y') primes
-        y' = floor y
-        m' = fromIntegral m
-        bound = 2 * (d+1) * m'**2 * u**(d+1)
-        getExp p = do
-          let p' = fromIntegral p
-              e_bound = fromIntegral . floor . logBase p' $ bound
-              lge_bound = floor . logBase 2 $ e_bound
-              e_size = maybe lge_bound (min lge_bound) eMax
-          e <- replicateM e_size nextVar
-          return (p, UInt e)
 
 -- steps 1-3 of the algorithm
-smoothInput :: (Integral n, Show n, Floating f, RealFrac f) => n -> f -> f -> f -> Maybe Int -> SymEval (SInt, UInt, UInt, [UInt], [(n, UInt)])
+smoothInput :: (Integral n, Show n, Floating f, RealFrac f, Show f) => n -> f -> f -> f -> Maybe Int -> SymEval (SInt, UInt, UInt, [UInt], [(n, UInt)], Int)
 smoothInput n d y u eMax = do
   let lgu = ceiling $ logBase 2 u
   a <- replicateM (lgu+1) nextVar 
@@ -875,34 +876,35 @@ smoothInput n d y u eMax = do
   b <- replicateM lgu nextVar
   addComment $ "b := " ++ show b
   let n' = fromIntegral n
-      d' = fromIntegral (ceiling d)
-      m = floor (n' ** (1 / d'))
+      m = floor (n' ** (1 / d))
       mbits = int2UInt m
-      cs = digits m n
-      cbits = map int2UInt cs
   addComment $ "m = " ++ show m
+  let cs = digits m n
+      cbits = map int2UInt cs
   addComment $ "cs = " ++ show cs
-  pes <- primeList m d y u eMax
+  let bound = u**(fromIntegral (length cs) + 1) * (fromIntegral m + 1) * (fromIntegral (sum cs))
+      lgBound = ceiling $ logBase 2 bound
+  pes <- primeList m d y u cs bound eMax
   mapM_ (\(p, e) -> addComment $ "pp := " ++ show p ++ "^" ++ show (getUInt e)) pes
-  return (SInt a, UInt b, mbits, cbits, pes)
+  return (SInt a, UInt b, mbits, cbits, pes, lgBound)
 
 -- Compute parameters according to N as given in [BBM17]
 smooth :: (Integral n, Show n) => n -> Maybe Int -> SymEval ()
 smooth n eMax = do
   addComment $ "smooth (n, eMax): " ++ show (n, eMax)
-  addComment $ "parameters (beta, epsilon, delta): " ++ show (beta, epsilon, delta)
-  addComment $ "parameters (y, u, d): " ++ show (y, u, d)
-  (a, b, m, cs, pes) <- smoothInput n d y u eMax
-  smoothCircuit a b m cs pes
-  where n' = fromIntegral n
-        ln = log n'
-        lln = log n'
-        y = bigl beta n'
-        u = bigl epsilon n'
-        d = delta * (ln**(1/3)) * (lln**(-1/3))
-        beta = (8/9)**(1/3) :: Double
-        delta = 3**(1/3) :: Double
-        epsilon = beta
+  let beta = (8/9)**(1/3) :: Double
+      delta = 3**(1/3) :: Double
+      epsilon = beta
+  addComment $ "parameters (beta, delta, epsilon): " ++ show (beta, delta, epsilon)
+  let n' = fromIntegral n
+      ln = log n'
+      lln = log ln
+      d = delta * (ln**(1/3)) * (lln**(-1/3))
+      y = bigl beta n'
+      u = bigl epsilon n'
+  addComment $ "parameters (d, y, u): " ++ show (d, y, u)
+  (a, b, m, cs, pes, lgBound) <- smoothInput n d y u eMax
+  smoothCircuit a b m cs pes lgBound
 
 -----
 -- Main
