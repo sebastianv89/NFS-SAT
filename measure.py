@@ -141,6 +141,7 @@ def visualize(data):
     l2 = plt.plot(x_line, y_line2, label='$L^{1.923}$')
     plt.xticks([2**i for i in range(min_size, max_size)],
             ['$2^{{{}}}$'.format(i) for i in range(min_size, max_size)])
+    plt.tick_params(axis='x', which='minor', bottom=False)
     plt.xlabel('N')
     plt.ylabel('solver runtime (s)')
     plt.legend()
