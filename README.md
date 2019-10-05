@@ -78,14 +78,13 @@ were found and how to write F(a,b) as a product of small primes.
 $ python3 check_solution.py bench/1337.dimacs bench/sol_1337/1.dimacs
 ```
 
-Running more benchmarks can be done with the following script (this does
-not terminate by itself, so you'll have to stop it by sending SIGTERM):
+Running more benchmarks can be done with the following script:
 
 ```bash
-$ bash bench.sh
+$ python3 bench.py
 ```
 
-You probably want to adjust many parameters in the `bench.sh` script before
+You probably want to adjust many parameters in the `bench.py` script before
 you run it.
 
 If you solve the same instance multiple times, you may be interested in
