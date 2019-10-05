@@ -114,36 +114,40 @@ def y(n):
 
 def visualize(data):
     # plot sizeof(N) against runtime
-    xs = list(data.keys())
-    x_line = np.logspace(np.log(min(xs)), np.log(max(xs)), num=200, base=np.e)
+    xs_sat, xs_unsat = [], []
+    x_line = np.logspace(np.log(min(data.keys())), np.log(max(data.keys())), num=200, base=np.e)
     y_line1 = list(map(lambda x: np.power(L(x), 1.387), list(x_line)))
     y_line2 = list(map(lambda x: np.power(L(x), 1.923), list(x_line)))
     y_line3 = list(map(lambda x: np.power(2, y(x)), list(x_line)))
-    ys = []
+    ys_sat, ys_unsat = [], []
     for n in data:
         yss = []
         for solution in data[n]['solutions'].values():
             yss.append(solution['time'])
-        ys.append(y(n) * np.median(yss))
+        if data[n]['satisfiable']:
+            xs_sat.append(n)
+            ys_sat.append(y(n) * np.median(yss))
+        else:
+            xs_unsat.append(n)
+            ys_unsat.append(y(n) * np.median(yss))
     min_size = min(data[n]['size'] for n in data) - 1
     max_size = max(data[n]['size'] for n in data) + 1
     plt.xscale('log')
     plt.yscale('log')
-    plt.scatter(xs, ys, label='y(N) * time to solve one instance')
+    plt.scatter(xs_sat, ys_sat, label='y(N) * time to solve one instance (satisfiable)')
+    plt.scatter(xs_unsat, ys_unsat, label='y(N) * time to solve one instance (unsatisfiable)', color='red')
     l3 = plt.plot(x_line, y_line3, label='$2^{y}$')
     l1 = plt.plot(x_line, y_line1, label='$L^{1.387}$')
     l2 = plt.plot(x_line, y_line2, label='$L^{1.923}$')
     plt.xticks([2**i for i in range(min_size, max_size)],
             ['$2^{{{}}}$'.format(i) for i in range(min_size, max_size)])
     plt.xlabel('N')
-    plt.ylabel('median solver runtime (s)')
+    plt.ylabel('solver runtime (s)')
     plt.legend()
     plt.title('Runtime of solving the variable exponent circuit')
 
     plt.show()
 
-# TODO: figure out a way to visualize which smooth numbers were found
-# TODO: distinguish SAT vs UNSAT instances
 def visualize_more(data):
     plt.figure(1)
 
@@ -219,8 +223,8 @@ def visualize_more(data):
     plt.show()
 
 def main():
-    pfname = 'measure.pickle'.format(DIR)
-    if os.path.isfile(pfname):
+    pfname = 'measure.pickle'
+    if os.path.isfile(pfname) and os.path.getmtime(pfname) >= os.path.getmtime(TIMING_FILE):
         with open(pfname, 'rb') as pf:
             data = pickle.load(pf)
     else:
